@@ -1,21 +1,19 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.WindowsAzure;
-using Microsoft.WindowsAzure.Diagnostics;
+using Microsoft.Owin.Hosting;
 using Microsoft.WindowsAzure.ServiceRuntime;
-using Microsoft.WindowsAzure.Storage;
+using Nancy.Worker.Owin;
 
 namespace Nancy.Worker
 {
     public class WorkerRole : RoleEntryPoint
     {
-        private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private readonly ManualResetEvent runCompleteEvent = new ManualResetEvent(false);
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        private readonly ManualResetEvent _runCompleteEvent = new ManualResetEvent(false);
+        private IDisposable _app;
 
         public override void Run()
         {
@@ -23,11 +21,11 @@ namespace Nancy.Worker
 
             try
             {
-                this.RunAsync(this.cancellationTokenSource.Token).Wait();
+                RunAsync(_cancellationTokenSource.Token).Wait();
             }
             finally
             {
-                this.runCompleteEvent.Set();
+                _runCompleteEvent.Set();
             }
         }
 
@@ -36,10 +34,9 @@ namespace Nancy.Worker
             // Set the maximum number of concurrent connections
             ServicePointManager.DefaultConnectionLimit = 12;
 
-            // For information on handling configuration changes
-            // see the MSDN topic at http://go.microsoft.com/fwlink/?LinkId=166357.
+            var result = base.OnStart();
 
-            bool result = base.OnStart();
+            StartOwinWebApp();
 
             Trace.TraceInformation("Nancy.Worker has been started");
 
@@ -50,21 +47,30 @@ namespace Nancy.Worker
         {
             Trace.TraceInformation("Nancy.Worker is stopping");
 
-            this.cancellationTokenSource.Cancel();
-            this.runCompleteEvent.WaitOne();
+            _app.Dispose();
+
+            _cancellationTokenSource.Cancel();
+            _runCompleteEvent.WaitOne();
 
             base.OnStop();
 
             Trace.TraceInformation("Nancy.Worker has stopped");
         }
 
+        private void StartOwinWebApp()
+        {
+            var endpoint = RoleEnvironment.CurrentRoleInstance.InstanceEndpoints["Http"];
+            var baseUri = $"{endpoint.Protocol}://{endpoint.IPEndpoint}";
+
+            Trace.TraceInformation($"Starting OWIN at {baseUri}", "Information");
+            _app = WebApp.Start<Startup>(new StartOptions(url: baseUri));
+        }
+
         private async Task RunAsync(CancellationToken cancellationToken)
         {
-            // TODO: Replace the following with your own logic.
             while (!cancellationToken.IsCancellationRequested)
             {
-                Trace.TraceInformation("Working");
-                await Task.Delay(1000);
+                await Task.Delay(1000, cancellationToken);
             }
         }
     }

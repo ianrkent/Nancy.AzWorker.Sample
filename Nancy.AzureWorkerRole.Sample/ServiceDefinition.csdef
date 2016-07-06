@@ -2,7 +2,9 @@
 <ServiceDefinition name="Nancy.AzureWorkerRole.Sample" xmlns="http://schemas.microsoft.com/ServiceHosting/2008/10/ServiceDefinition" schemaVersion="2015-04.2.6">
   <WorkerRole name="Nancy.Worker" vmsize="Small">
     <ConfigurationSettings>
-      <Setting name="Microsoft.WindowsAzure.Plugins.Diagnostics.ConnectionString" />
     </ConfigurationSettings>
+    <Endpoints>
+      <InputEndpoint name="Http" protocol="http" port="12345" localPort="12345" />
+    </Endpoints>
   </WorkerRole>
 </ServiceDefinition>
